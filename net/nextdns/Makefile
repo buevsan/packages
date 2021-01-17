@@ -8,13 +8,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nextdns
-PKG_VERSION:=1.7.1
-PKG_RELEASE:=1
+PKG_VERSION:=1.9.6
+PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_VERSION:=v$(PKG_VERSION)
 PKG_SOURCE_URL:=https://github.com/nextdns/nextdns.git
-PKG_MIRROR_HASH:=79ae12b494e1c9c7e309a8763975f2457771f26221113ed51dc0884299ae25b4
+PKG_MIRROR_HASH:=112bf0898cd355d0795d36ab0cd5590f44490b382e6e874bf63e8c66f2b49acb
 
 PKG_MAINTAINER:=Olivier Poitrey <rs@nextdns.io>
 PKG_LICENSE:=MIT
@@ -37,6 +37,10 @@ define Package/nextdns
   TITLE:=NextDNS DNS over HTTPS Proxy
   URL:=https://github.com/nextdns/nextdns
   DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle
+endef
+
+define Package/nextdns/conffiles
+/etc/config/nextdns
 endef
 
 define Package/nextdns/install
