@@ -84,6 +84,7 @@ CONFIGURE_ARGS += \
 	--localstatedir=/etc \
 	--with-system-ss \
 	--with-system-et \
+	--with-ldap \
 	--without-system-verto \
 	--without-tcl \
 	--without-tls-impl \
