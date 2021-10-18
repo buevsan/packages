@@ -25,6 +25,8 @@ PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
 PKG_BUILD_FLAGS:=no-mips16
 
+PKG_BUILD_DEPENDS:=openldap
+
 include $(INCLUDE_DIR)/package.mk
 
 MAKE_PATH:=src
@@ -40,7 +42,7 @@ define Package/krb5-libs
 	SECTION:=net
 	CATEGORY:=Network
 	TITLE:=Kerberos
-	DEPENDS:=+libncurses +libss +libcomerr
+	DEPENDS:=+libncurses +libss +libcomerr +libopenldap
 	TITLE:=Kerberos 5 Shared Libraries
 	URL:=http://web.mit.edu/kerberos/
 endef
@@ -84,6 +86,7 @@ CONFIGURE_ARGS += \
 	--localstatedir=/etc \
 	--with-system-ss \
 	--with-system-et \
+	--with-ldap \
 	--without-system-verto \
 	--without-tcl \
 	--without-tls-impl \
@@ -114,6 +117,7 @@ define Package/krb5-libs/install
 	$(INSTALL_DIR) $(1)/usr/lib/krb5/plugins/kdb
 	$(INSTALL_DIR) $(1)/usr/lib/krb5/plugins/libkrb5
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/krb5/plugins/kdb/db2.so $(1)/usr/lib/krb5/plugins/kdb
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/krb5/plugins/kdb/kldap.so $(1)/usr/lib/krb5/plugins/kdb
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib
 endef
 
@@ -125,6 +129,7 @@ define Package/krb5-client/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/kpasswd $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/ksu $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/kvno $(1)/usr/bin
+
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/krb5-send-pr $(1)/usr/sbin
 endef
@@ -138,6 +143,7 @@ define Package/krb5-server/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kadmin.local $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kdb5_util $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/krb5kdc $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kdb5_ldap_util $(1)/usr/sbin
 endef
 
 define Package/krb5-server-extras/install
