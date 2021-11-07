@@ -26,6 +26,8 @@ PKG_MACRO_PATHS:=cmulocal config ../cmulocal ../config
 PKG_AUTOMAKE_PATHS:=. saslauthd sasldb
 PKG_REMOVE_FILES:=aclocal.m4 saslauthd/aclocal.m4 config/libtool.m4
 
+#PKG_BUILD_DEPENDS:=krb5
+
 include $(INCLUDE_DIR)/package.mk
 
 define Package/libsasl2/Default
