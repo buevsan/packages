@@ -19,8 +19,11 @@ PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE.md
 
 include ../pypi.mk
+include $(INCLUDE_DIR)/host-build.mk
 include $(INCLUDE_DIR)/package.mk
+include ../python3-host.mk
 include ../python3-package.mk
+
 
 define Package/python3-markdown
   SECTION:=lang
@@ -36,6 +39,14 @@ endef
 define Package/python3-markdown/description
   A fast and complete Python implementation of Markdown.
 endef
+
+define Host/Compile
+	$(call HostPython3/ModSetup,,install --prefix="" --root="$(STAGING_DIR_HOSTPKG)")
+endef
+
+Host/Install:=
+
+$(eval $(call HostBuild))
 
 $(eval $(call Py3Package,python3-markdown))
 $(eval $(call BuildPackage,python3-markdown))

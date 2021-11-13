@@ -20,8 +20,11 @@ PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Josef Schlehofer <pepe.schlehofer@gmail.com>
 
 include ../pypi.mk
+include $(INCLUDE_DIR)/host-build.mk
 include $(INCLUDE_DIR)/package.mk
+include ../python3-host.mk
 include ../python3-package.mk
+
 
 define Package/python3-dns
   SUBMENU:=Python
@@ -35,6 +38,14 @@ endef
 define Package/python3-dns/description
  dnspython is a DNS toolkit for Python. It supports almost all record types. It can be used for queries, zone transfers, and dynamic updates. It supports TSIG authenticated messages and EDNS0.
 endef
+
+define Host/Compile
+	$(call HostPython3/ModSetup,,install --prefix="" --root="$(STAGING_DIR_HOSTPKG)")
+endef
+
+Host/Install:=
+
+$(eval $(call HostBuild))
 
 $(eval $(call Py3Package,python3-dns))
 $(eval $(call BuildPackage,python3-dns))
