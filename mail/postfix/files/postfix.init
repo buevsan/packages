@@ -34,8 +34,12 @@ postinst() {
 }
 
 start() {
-	if [ -z "$(postconf -nh myhostname)" ]; then
+	if [ -z "$(postconf -nh myhostname)" -o owner != "postfix" ]; then
 		postinst
+	fi
+	owner="$(ls -ld  /usr/var/spool/postfix/private | awk '{print $3}')"
+	if [ owner != "postfix" ]; then
+		postfix set-permissions
 	fi
 	postfix start
 }
