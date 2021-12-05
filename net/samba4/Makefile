@@ -66,7 +66,8 @@ define Package/samba4-libs
 	+PACKAGE_libpam:libpam \
 	+SAMBA4_SERVER_VFS:attr \
 	+SAMBA4_SERVER_AVAHI:libavahi-client \
-	+SAMBA4_SERVER_AD_DC:python3-cryptodome +SAMBA4_SERVER_AD_DC:libopenldap +SAMBA4_SERVER_AD_DC:jansson +SAMBA4_SERVER_AD_DC:libarchive +SAMBA4_SERVER_AD_DC:acl +SAMBA4_SERVER_AD_DC:attr
+	+SAMBA4_SERVER_AD_DC:python3-cryptodome +SAMBA4_SERVER_AD_DC:libopenldap +SAMBA4_SERVER_AD_DC:jansson +SAMBA4_SERVER_AD_DC:libarchive +SAMBA4_SERVER_AD_DC:acl +SAMBA4_SERVER_AD_DC:attr \
+	+SAMBA4_SERVER_AD_DC:python3-dns
 endef
 
 define Package/samba4-server
@@ -178,7 +179,7 @@ CONFIGURE_ARGS += \
 		--without-automount \
 		--without-iconv \
 		--without-lttng \
-		--without-ntvfs-fileserver \
+		--with-ntvfs-fileserver \
 		--without-pam \
 		--without-systemd \
 		--without-utmp \
@@ -187,6 +188,8 @@ CONFIGURE_ARGS += \
 		--without-gettext \
 		--without-regedit \
 		--without-gpgme
+
+#		--without-ntvfs-fileserver \
 
 HOST_CONFIGURE_ARGS += \
 		--hostcc="$(HOSTCC)" \
@@ -244,7 +247,7 @@ else
 endif
 
 ifeq ($(CONFIG_SAMBA4_SERVER_AD_DC),y)
-	CONFIGURE_ARGS += --without-winbind --without-ldb-lmdb --with-acl-support
+	CONFIGURE_ARGS += --with-winbind --without-ldb-lmdb --with-acl-support
 else
 	CONFIGURE_ARGS += --without-winbind --without-ads --without-ldap --without-ldb-lmdb --without-ad-dc \
 		--without-json --without-libarchive --disable-python --nopyc --nopyo --without-dnsupdate --without-acl-support
@@ -274,7 +277,7 @@ ifeq ($(CONFIG_SAMBA4_SERVER_AD_DC),y)
 	SAMBA4_PDB_MODULES :=$(SAMBA4_PDB_MODULES)pdb_samba_dsdb,pdb_ldapsam,
 	SAMBA4_AUTH_MODULES :=$(SAMBA4_AUTH_MODULES)auth_samba4,
 	SAMBA4_VFS_MODULES :=$(SAMBA4_VFS_MODULES)vfs_posixacl,
-	SAMBA4_VFS_MODULES_SHARED :=$(SAMBA4_VFS_MODULES_SHARED)vfs_audit,vfs_extd_audit,vfs_full_audit,vfs_acl_xattr,vfs_acl_tdb,
+	SAMBA4_VFS_MODULES_SHARED :=$(SAMBA4_VFS_MODULES_SHARED)vfs_audit,vfs_extd_audit,vfs_full_audit,vfs_acl_xattr,vfs_acl_tdb,vfs_dfs_samba4,
 	# vfs_zfsacl needs https://github.com/zfsonlinux/zfs/tree/master/include/sys/zfs_acl.h
 	# vfs_nfs4acl_xattr needs https://github.com/notriddle/libdrpc/blob/master/rpc/xdr.h
 endif
@@ -426,6 +429,7 @@ ifeq ($(CONFIG_SAMBA4_SERVER_AD_DC),y)
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/{samba-tool,ntlm_auth,oLschema2ldif} $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/{sharesec,smbcacls} $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/{samba,samba-gpupdate,samba_dnsupdate,samba_kcc,samba_spnupdate,samba_upgradedns,samba_downgrade_db} $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/winbindd $(1)/usr/sbin/
 endif
 	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/samba $(1)/etc/init.d
 	$(INSTALL_CONF) ./files/samba.config $(1)/etc/config/samba4
