@@ -26,7 +26,7 @@ PKG_MACRO_PATHS:=cmulocal config ../cmulocal ../config
 PKG_AUTOMAKE_PATHS:=. saslauthd sasldb
 PKG_REMOVE_FILES:=aclocal.m4 saslauthd/aclocal.m4 config/libtool.m4
 
-PKG_BUILD_DEPENDS:=krb5
+#PKG_BUILD_DEPENDS:=krb5
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -35,7 +35,7 @@ define Package/libsasl2
   CATEGORY:=Libraries
   TITLE:=A general purpose authentication library
   URL:=http://asg.web.cmu.edu/sasl/
-  DEPENDS:=+libopenssl +krb5-libs
+  DEPENDS:=+libopenssl #+krb5-libs
 endef
 
 TARGET_CFLAGS += $(FPIC)
@@ -54,8 +54,8 @@ CONFIGURE_ARGS += \
 	--disable-srp \
 	--disable-srp-setpass \
 	--disable-krb4 \
-	--enable-gssapi \
-	--enable-gss_mutexes \
+	--disable-gssapi \
+	--disable-gss_mutexes \
 	--enable-plain \
 	--enable-anon \
 	--disable-login \
