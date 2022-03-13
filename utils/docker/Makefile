@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=docker
-PKG_VERSION:=20.10.9
+PKG_VERSION:=20.10.12
 PKG_RELEASE:=$(AUTORELEASE)
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
@@ -10,8 +10,8 @@ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_GIT_URL:=github.com/docker/cli
 PKG_GIT_REF:=v$(PKG_VERSION)
 PKG_SOURCE_URL:=https://codeload.$(PKG_GIT_URL)/tar.gz/$(PKG_GIT_REF)?
-PKG_HASH:=d91010813824070dd2380013c8f343e61e6dda170f7853f024bda39b432b64ba
-PKG_GIT_SHORT_COMMIT:=c2ea9bc # SHA1 used within the docker executables
+PKG_HASH:=d86e3e6e10669634ee02b5e071e5ee504457a9d03941bbc5b7f2bd3683ebdb19
+PKG_GIT_SHORT_COMMIT:=e91ed57 # SHA1 used within the docker executables
 
 PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
 
@@ -39,6 +39,7 @@ endef
 GO_PKG_BUILD_VARS += GO111MODULE=auto
 TAR_OPTIONS:=--strip-components 1 $(TAR_OPTIONS)
 TAR_CMD=$(HOST_TAR) -C $(1) $(TAR_OPTIONS)
+TARGET_LDFLAGS += $(if $(CONFIG_USE_GLIBC),-lgcc_eh)
 
 define Build/Prepare
 	$(Build/Prepare/Default)
