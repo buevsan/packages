@@ -1,0 +1,290 @@
+diff --git a/ipset/ipset.c b/ipset/ipset.c
+index c61ebc20..4e2c55d1 100644
+--- a/ipset/ipset.c
++++ b/ipset/ipset.c
+@@ -20,6 +20,7 @@
+ #include <libmnl/libmnl.h>
+ #include <linux/netfilter/nfnetlink.h>
+ #include <linux/netfilter/ipset/ip_set.h>
++#include <linux/netfilter/nf_tables.h>
+ 
+ #define BUFF_LEN 256
+ 
+@@ -97,6 +98,88 @@ static int add_to_ipset(struct mnl_socket *mnl, const char *setname, const void
+ 	return 0;
+ }
+ 
++static unsigned int seq = 1;
++
++static struct nlmsghdr *__nftnl_nlmsg_build_hdr(char *buf, uint16_t type,
++						uint16_t family,
++						uint16_t flags, uint32_t seq,
++						uint16_t res_id)
++{
++	struct nlmsghdr *nlh;
++	struct nfgenmsg *nfh;
++
++	nlh = mnl_nlmsg_put_header(buf);
++	nlh->nlmsg_type = type;
++	nlh->nlmsg_flags = NLM_F_REQUEST | flags;
++	nlh->nlmsg_seq = seq;
++
++	nfh = mnl_nlmsg_put_extra_header(nlh, sizeof(struct nfgenmsg));
++	nfh->nfgen_family = family;
++	nfh->version = NFNETLINK_V0;
++	nfh->res_id = htons(res_id);
++
++	return nlh;
++}
++
++static int add_to_nftset(struct mnl_socket *mnl, const char *tablename, const char *setname, const void *ipaddr, int af) {
++	struct nlmsghdr *nlh;
++	struct nfgenmsg *nfh;
++	struct nlattr *nested[3];
++	static char buffer[BUFF_LEN], *b = buffer;
++  size_t l = 0;
++
++  if (!(tablename && setname)) {
++    errno = -EINVAL;
++    return -1;
++  }
++
++	if (strlen(setname) >= IPSET_MAXNAMELEN) {
++		errno = ENAMETOOLONG;
++		return -1;
++	}
++
++	if (af != AF_INET && af != AF_INET6) {
++		errno = EAFNOSUPPORT;
++		return -1;
++	}
++
++  nlh = __nftnl_nlmsg_build_hdr(b, NFNL_MSG_BATCH_BEGIN, AF_UNSPEC,
++                          0, seq++, NFNL_SUBSYS_NFTABLES);
++  b += nlh->nlmsg_len;
++  l += nlh->nlmsg_len;
++	verbose(VERB_QUERY, "ipset: t:%s s:%s add %u", tablename, setname, l);
++
++  nlh = __nftnl_nlmsg_build_hdr(b, (NFNL_SUBSYS_NFTABLES << 8) | NFT_MSG_NEWSETELEM,
++                                af, NLM_F_CREATE, seq++, 0);
++
++  mnl_attr_put_strz(nlh, NFTA_SET_ELEM_LIST_TABLE, tablename);
++  mnl_attr_put_strz(nlh, NFTA_SET_ELEM_LIST_SET, setname);
++
++  mnl_attr_put_u32(nlh, NFTA_SET_ELEM_LIST_SET_ID, htonl(1));
++  nested[0] = mnl_attr_nest_start(nlh, NFTA_SET_ELEM_LIST_ELEMENTS);
++  nested[1] = mnl_attr_nest_start(nlh, NFTA_SET_ELEM_KEY);
++  nested[2] = mnl_attr_nest_start(nlh, NFTA_SET_ELEM_KEY);
++  mnl_attr_put(nlh, NFTA_DATA_VALUE,
++               (af == AF_INET) ? sizeof(struct in_addr) : sizeof(struct in6_addr), ipaddr);
++  mnl_attr_nest_end(nlh, nested[2]);
++  mnl_attr_nest_end(nlh, nested[1]);
++  mnl_attr_nest_end(nlh, nested[0]);
++
++  b += nlh->nlmsg_len;
++  l += nlh->nlmsg_len;
++
++	nlh = __nftnl_nlmsg_build_hdr(b, NFNL_MSG_BATCH_END, AF_UNSPEC,
++                  				      0, seq++, NFNL_SUBSYS_NFTABLES);
++
++  b += nlh->nlmsg_len;
++  l += nlh->nlmsg_len;
++
++	if (mnl_socket_sendto(mnl, buffer, l) < 0) {
++		return -1;
++	}
++	return 0;
++}
++
+ static void
+ ipset_add_rrset_data(struct ipset_env *ie, struct mnl_socket *mnl,
+ 	struct packed_rrset_data *d, const char* setname, int af,
+@@ -122,8 +205,13 @@ ipset_add_rrset_data(struct ipset_env *ie, struct mnl_socket *mnl,
+ 				if(inet_ntop(af, rr_data+2, ip, (socklen_t)sizeof(ip)) == 0)
+ 					snprintf(ip, sizeof(ip), "(inet_ntop_error)");
+ 				verbose(VERB_QUERY, "ipset: add %s to %s for %s", ip, setname, dname);
+-			}
+-			ret = add_to_ipset(mnl, setname, rr_data + 2, af);
++      }
++      if (ie->mode == 0)
++			  ret = add_to_ipset(mnl, setname, rr_data + 2, af);
++      else  {
++        const char *tablename = (af == AF_INET) ? ie->table_v4 : ie->table_v6;
++			  ret = add_to_nftset(mnl, tablename, setname, rr_data + 2, af);
++      }
+ 			if (ret < 0) {
+ 				log_err("ipset: could not add %s into %s", dname, setname);
+ 
+@@ -241,6 +329,9 @@ int ipset_init(struct module_env* env, int id) {
+ 
+ 	ipset_env->name_v4 = env->cfg->ipset_name_v4;
+ 	ipset_env->name_v6 = env->cfg->ipset_name_v6;
++	ipset_env->table_v4 = env->cfg->ipset_table_v4;
++	ipset_env->table_v6 = env->cfg->ipset_table_v6;
++	ipset_env->mode = env->cfg->ipset_mode;
+ 
+ 	ipset_env->v4_enabled = !ipset_env->name_v4 || (strlen(ipset_env->name_v4) == 0) ? 0 : 1;
+ 	ipset_env->v6_enabled = !ipset_env->name_v6 || (strlen(ipset_env->name_v6) == 0) ? 0 : 1;
+@@ -372,7 +463,7 @@ size_t ipset_get_mem(struct module_env *env, int id) {
+ }
+ 
+ /**
+- * The ipset function block 
++ * The ipset function block
+  */
+ static struct module_func_block ipset_block = {
+ 	"ipset",
+diff --git a/ipset/ipset.h b/ipset/ipset.h
+index f60a8be8..a509e199 100644
+--- a/ipset/ipset.h
++++ b/ipset/ipset.h
+@@ -44,6 +44,9 @@ struct ipset_env {
+ 
+ 	const char *name_v4;
+ 	const char *name_v6;
++	const char *table_v4;
++	const char *table_v6;
++	int mode;
+ };
+ 
+ struct ipset_qstate {
+diff --git a/util/config_file.c b/util/config_file.c
+index e3a77053..88785cf5 100644
+--- a/util/config_file.c
++++ b/util/config_file.c
+@@ -380,6 +380,9 @@ config_create(void)
+ #ifdef USE_IPSET
+ 	cfg->ipset_name_v4 = NULL;
+ 	cfg->ipset_name_v6 = NULL;
++	cfg->ipset_mode = 0;
++	cfg->ipset_table_v4 = NULL;
++	cfg->ipset_table_v6 = NULL;
+ #endif
+ 	cfg->ede = 0;
+ 	return cfg;
+@@ -1294,6 +1297,9 @@ config_get_option(struct config_file* cfg, const char* opt,
+ #ifdef USE_IPSET
+ 	else O_STR(opt, "name-v4", ipset_name_v4)
+ 	else O_STR(opt, "name-v6", ipset_name_v6)
++	else O_DEC(opt, "mode",     ipset_mode)
++	else O_STR(opt, "table-v4", ipset_table_v4)
++	else O_STR(opt, "table-v6", ipset_table_v6)
+ #endif
+ 	/* not here:
+ 	 * outgoing-permit, outgoing-avoid - have list of ports
+@@ -1668,11 +1674,13 @@ config_delete(struct config_file* cfg)
+ #ifdef USE_IPSET
+ 	free(cfg->ipset_name_v4);
+ 	free(cfg->ipset_name_v6);
++	free(cfg->ipset_table_v4);
++	free(cfg->ipset_table_v6);
+ #endif
+ 	free(cfg);
+ }
+ 
+-static void 
++static void
+ init_outgoing_availports(int* a, int num)
+ {
+ 	/* generated with make iana_update */
+diff --git a/util/config_file.h b/util/config_file.h
+index 87cb92cf..528bf464 100644
+--- a/util/config_file.h
++++ b/util/config_file.h
+@@ -702,6 +702,9 @@ struct config_file {
+ #ifdef USE_IPSET
+ 	char* ipset_name_v4;
+ 	char* ipset_name_v6;
++	int   ipset_mode;
++	char* ipset_table_v4;
++	char* ipset_table_v6;
+ #endif
+ 	/** respond with Extended DNS Errors (RFC8914) */
+ 	int ede;
+diff --git a/util/configlexer.lex b/util/configlexer.lex
+index 4e4a9653..41cbdde5 100644
+--- a/util/configlexer.lex
++++ b/util/configlexer.lex
+@@ -559,6 +559,9 @@ redis-expire-records{COLON}	{ YDVAR(1, VAR_CACHEDB_REDISEXPIRERECORDS) }
+ ipset{COLON}			{ YDVAR(0, VAR_IPSET) }
+ name-v4{COLON}			{ YDVAR(1, VAR_IPSET_NAME_V4) }
+ name-v6{COLON}			{ YDVAR(1, VAR_IPSET_NAME_V6) }
++table-v4{COLON}			{ YDVAR(1, VAR_IPSET_TABLE_V4) }
++table-v6{COLON}			{ YDVAR(1, VAR_IPSET_TABLE_V6) }
++mode{COLON}			    { YDVAR(1, VAR_IPSET_MODE) }
+ udp-upstream-without-downstream{COLON} { YDVAR(1, VAR_UDP_UPSTREAM_WITHOUT_DOWNSTREAM) }
+ tcp-connection-limit{COLON}	{ YDVAR(2, VAR_TCP_CONNECTION_LIMIT) }
+ edns-client-string{COLON}	{ YDVAR(2, VAR_EDNS_CLIENT_STRING) }
+diff --git a/util/configparser.y b/util/configparser.y
+index f21c3081..662f6c84 100644
+--- a/util/configparser.y
++++ b/util/configparser.y
+@@ -184,7 +184,7 @@ extern struct config_parser_state* cfg_parser;
+ %token VAR_FORWARD_NO_CACHE VAR_STUB_NO_CACHE VAR_LOG_SERVFAIL VAR_DENY_ANY
+ %token VAR_UNKNOWN_SERVER_TIME_LIMIT VAR_LOG_TAG_QUERYREPLY
+ %token VAR_STREAM_WAIT_SIZE VAR_TLS_CIPHERS VAR_TLS_CIPHERSUITES VAR_TLS_USE_SNI
+-%token VAR_IPSET VAR_IPSET_NAME_V4 VAR_IPSET_NAME_V6
++%token VAR_IPSET VAR_IPSET_NAME_V4 VAR_IPSET_NAME_V6 VAR_IPSET_MODE VAR_IPSET_TABLE_V4 VAR_IPSET_TABLE_V6
+ %token VAR_TLS_SESSION_TICKET_KEYS VAR_RPZ VAR_TAGS VAR_RPZ_ACTION_OVERRIDE
+ %token VAR_RPZ_CNAME_OVERRIDE VAR_RPZ_LOG VAR_RPZ_LOG_NAME
+ %token VAR_DYNLIB VAR_DYNLIB_FILE VAR_EDNS_CLIENT_STRING
+@@ -3739,7 +3739,7 @@ server_tcp_connection_limit: VAR_TCP_CONNECTION_LIMIT STRING_ARG STRING_ARG
+ 		;
+ 	contents_ipset: contents_ipset content_ipset
+ 		| ;
+-	content_ipset: ipset_name_v4 | ipset_name_v6
++	content_ipset: ipset_name_v4 | ipset_name_v6 | ipset_table_v4 | ipset_table_v6 | ipset_mode
+ 		;
+ 	ipset_name_v4: VAR_IPSET_NAME_V4 STRING_ARG
+ 		{
+@@ -3771,6 +3771,50 @@ server_tcp_connection_limit: VAR_TCP_CONNECTION_LIMIT STRING_ARG STRING_ARG
+ 		#endif
+ 		}
+ 	;
++	ipset_table_v4: VAR_IPSET_TABLE_V4 STRING_ARG
++		{
++		#ifdef USE_IPSET
++			OUTYY(("P(table-v4:%s)\n", $2));
++			if(cfg_parser->cfg->ipset_table_v4)
++				yyerror("ipset table v4 override, there must be one "
++					"table name for ip v4");
++			free(cfg_parser->cfg->ipset_table_v4);
++			cfg_parser->cfg->ipset_table_v4 = $2;
++		#else
++			OUTYY(("P(Compiled without ipset, ignoring)\n"));
++			free($2);
++		#endif
++		}
++	;
++	ipset_table_v6: VAR_IPSET_TABLE_V6 STRING_ARG
++	{
++		#ifdef USE_IPSET
++			OUTYY(("P(table-v6:%s)\n", $2));
++			if(cfg_parser->cfg->ipset_table_v6)
++				yyerror("ipset table v6 override, there must be one "
++					"table name for ip v6");
++			free(cfg_parser->cfg->ipset_table_v6);
++			cfg_parser->cfg->ipset_table_v6 = $2;
++		#else
++			OUTYY(("P(Compiled without ipset, ignoring)\n"));
++			free($2);
++		#endif
++		}
++	;
++  ipset_mode: VAR_IPSET_MODE STRING_ARG
++  {
++	  #ifdef USE_IPSET
++	    OUTYY(("P(ipset_mode:%s)\n", $2));
++	    if(sscanf($2,"%d", &cfg_parser->cfg->ipset_mode) < 1) {
++  	   	yyerror("number expected");
++	    }
++	    free($2);
++    #else
++		  OUTYY(("P(Compiled without ipset, ignoring)\n"));
++		  free($2);
++    #endif
++   }
++  ;
+ %%
+ 
+ /* parse helper routines could be here */
