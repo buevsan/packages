@@ -263,6 +263,8 @@ define Py3Build/Compile/Default
 	)
 endef
 
+PYTHON3_PKG_WHEEL_LC_NAME=$(shell echo $(PYTHON3_PKG_WHEEL_NAME) | tr A-Z a-z)
+
 define Py3Build/Install/Default
 	$(call Python3/Run, \
 		$(PKG_BUILD_DIR), \
@@ -270,7 +272,7 @@ define Py3Build/Install/Default
 			--destdir "$(PKG_INSTALL_DIR)" \
 			--no-compile-bytecode \
 			--prefix /usr \
-			"$(PYTHON3_PKG_BUILD_DIR)"/openwrt-build/$(PYTHON3_PKG_WHEEL_NAME)-$(PYTHON3_PKG_WHEEL_VERSION)-*.whl \
+			"$(PYTHON3_PKG_BUILD_DIR)"/openwrt-build/$(PYTHON3_PKG_WHEEL_LC_NAME)-$(PYTHON3_PKG_WHEEL_VERSION)-*.whl \
 			, \
 		$(PYTHON3_PKG_INSTALL_VARS) \
 	)
